@@ -45,7 +45,7 @@ http-logger sends a JSON array. Main fields: `route_id`, `server`, `client_ip`, 
 
 ### Other logger plugins
 
-tcp-logger, kafka-logger, udp-logger, error-logger — see [PluginHub](https://apisix.apache.org/docs/apisix/plugins/).
+tcp-logger, kafka-logger, udp-logger, error-logger — see [PluginHub](https://apisix.apache.org/docs/apisix/plugins/http-logger/).
 
 ---
 

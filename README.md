@@ -30,6 +30,7 @@ docker compose up -d
 | web2      | 9082  | Upstream nginx           |
 | Prometheus| 9090  | Metrics (arm64 stack)    |
 | Zipkin    | 9411  | Tracing (arm64 stack)    |
+| Grafana   | 3000  | Dashboards (arm64 stack) |
 
 ## Config
 
@@ -46,6 +47,7 @@ docker compose up -d
 | [docs/EXPOSE_API.md](docs/EXPOSE_API.md) | Upstream, route, proxy to httpbin |
 | [docs/PROTECT_API.md](docs/PROTECT_API.md) | Rate limit (limit-count) |
 | [docs/OBSERVE_API.md](docs/OBSERVE_API.md) | Logs, Prometheus metrics, Zipkin tracing |
+| [docs/GRAFANA.md](docs/GRAFANA.md) | Grafana login, first chart, dashboards |
 
 ## Full stack (amd64)
 

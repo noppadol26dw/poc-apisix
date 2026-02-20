@@ -48,6 +48,7 @@ docker compose up -d
 | [docs/PROTECT_API.md](docs/PROTECT_API.md) | Rate limit (limit-count) |
 | [docs/OBSERVE_API.md](docs/OBSERVE_API.md) | Logs, Prometheus metrics, Zipkin tracing |
 | [docs/GRAFANA.md](docs/GRAFANA.md) | Grafana login, first chart, dashboards |
+| [docs/HEALTH_CHECK.md](docs/HEALTH_CHECK.md) | Upstream health check (active + passive), Control API |
 
 ## Full stack (amd64)
 

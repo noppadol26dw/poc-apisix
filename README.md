@@ -53,3 +53,52 @@ docker compose up -d
 ## Full stack (amd64)
 
 `docker-compose.yml` adds Prometheus (9090) and Grafana (3000). Needs `prometheus_conf/` and `grafana_conf/` in place.
+
+## Deploy to Kubernetes (Production)
+
+For production-grade deployment on AWS EKS with CloudFront + WAF + NLB (Internal), see:
+
+- [k8s/docs/TERRAFORM_SETUP.md](k8s/docs/TERRAFORM_SETUP.md) - Deploy Terraform infrastructure (VPC, EKS, CloudFront, WAF)
+- [k8s/docs/K8S_DEPLOYMENT.md](k8s/docs/K8S_DEPLOYMENT.md) - Deploy APISIX and applications to Kubernetes
+- [k8s/docs/SECURITY_LAYERS.md](k8s/docs/SECURITY_LAYERS.md) - Security architecture overview
+
+### Architecture
+
+```
+Internet -> CloudFront -> WAF -> NLB (Internal) -> APISIX -> Apps
+```
+
+### Quick Start
+
+```bash
+# 1. Deploy Terraform infrastructure
+cd terraform
+./scripts/apply.sh
+
+# 2. Update kubeconfig
+aws eks update-kubeconfig --name apisix-cluster --region ap-southeast-1
+
+# 3. Deploy K8s resources
+cd k8s
+./scripts/deploy.sh
+
+# 4. Test routing
+curl http://<NLB-DNS-NAME>/web
+```
+
+### Features
+
+- **Terraform modules**: Reusable, testable infrastructure as code
+- **VPC with public/private subnets**: Standard production architecture
+- **EKS managed node groups**: AWS-managed Kubernetes nodes
+- **NLB Internal**: No direct public exposure, private CloudFront access
+- **CloudFront + WAF**: Global CDN + OWASP protection + rate limiting
+- **APISIX canary deployments**: 70:30 traffic split for testing
+- **Health checks**: Active + passive health monitoring
+- **Validation scripts**: Dry-run testing with `terraform validate`, `kubectl --dry-run`
+
+### Cost Estimate
+
+~$200-250/month for full production stack (light traffic).
+
+See [k8s/docs/TERRAFORM_SETUP.md](k8s/docs/TERRAFORM_SETUP.md) for detailed cost breakdown.

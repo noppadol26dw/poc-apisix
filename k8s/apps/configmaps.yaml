@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web1-config
+  namespace: default
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include       /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      server {
+        listen 80;
+        location / {
+          return 200 'web1';
+          add_header Content-Type text/plain;
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web2-config
+  namespace: default
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include       /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      server {
+        listen 80;
+        location / {
+          return 200 'web2';
+          add_header Content-Type text/plain;
+        }
+      }
+    }

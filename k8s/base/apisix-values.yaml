@@ -1,0 +1,101 @@
+apisix:
+  node_listen:
+    - 9080
+    - 9443
+  enable_ipv6: false
+
+  enable_control: true
+  control:
+    ip: "0.0.0.0"
+    port: 9092
+
+deployment:
+  role:
+    role: data-plane
+    role_arn: ""
+  role_apisix:
+    type: Deployment
+    replicas: 2
+  admin:
+    allow_admin:
+      - 0.0.0.0/0
+    admin_key:
+      - name: "admin"
+        key: "edd1c9f034335f136f87ad84b625c8f1"
+        role: admin
+      - name: "viewer"
+        key: "4054f7cf07e344346cd3f287985e76a2"
+        role: viewer
+
+  etcd:
+    host:
+      - "apisix-etcd.apisix.svc.cluster.local:2379"
+    prefix: "/apisix"
+    timeout: 30
+    tls:
+      enabled: false
+
+  gateway:
+    type: apisix
+    stream:
+      tcp:
+        - 9100
+
+  plugin_attr:
+    prometheus:
+      export_addr:
+        ip: "0.0.0.0"
+        port: 9091
+
+ingress-controller:
+  enabled: true
+
+  config:
+    apisix:
+      serviceNamespace: apisix
+
+dashboard:
+  enabled: true
+  image:
+    repository: apache/apisix-dashboard
+    tag: "3.0.1-alpine"
+  service:
+    type: ClusterIP
+    port: 9000
+    targetPort: 9000
+
+discovery:
+  type: nacos
+
+etcd:
+  enabled: true
+  image:
+    repository: quay.io/coreos/etcd
+    tag: "v3.5.0"
+
+  replicaCount: 3
+
+  persistence:
+    enabled: true
+    storageClass: "gp3"
+    size: "10Gi"
+
+  service:
+    port: 2379
+    targetPort: 2379
+
+  env:
+    - name: ALLOW_NONE_AUTHENTICATION
+      value: "yes"
+    - name: ETCD_ADVERTISE_CLIENT_URLS
+      value: "http://0.0.0.0:2379"
+    - name: ETCD_LISTEN_CLIENT_URLS
+      value: "http://0.0.0.0:2379"
+    - name: ETCD_LISTEN_PEER_URLS
+      value: "http://0.0.0.0:2380"
+    - name: ETCD_INITIAL_CLUSTER_STATE
+      value: "new"
+    - name: ETCD_INITIAL_CLUSTER
+      value: "apisix-etcd-0=http://0.0.0.0:2380,apisix-etcd-1=http://0.0.0.0:2380,apisix-etcd-2=http://0.0.0.0:2380"
+    - name: ETCD_INITIAL_ADVERTISE_PEER_URLS
+      value: "http://0.0.0.0:2380"

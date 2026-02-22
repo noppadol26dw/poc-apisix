@@ -1,0 +1,11 @@
+aws_region          = "ap-southeast-1"
+project_name        = "apisix"
+environment         = "prod"
+vpc_cidr            = "10.128.0.0/16"
+cluster_name        = "apisix-cluster"
+cluster_version     = "1.34"
+node_instance_types = ["t3.large"]
+node_desired_size   = 3
+node_max_size       = 5
+node_min_size       = 3
+domain_name         = "api.example.com"

@@ -1,0 +1,54 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: web-route
+  namespace: default
+spec:
+  http:
+    - name: web
+      match:
+        paths:
+          - "/web"
+      backends:
+        - serviceName: web1-svc
+          servicePort: 80
+          weight: 70
+        - serviceName: web2-svc
+          servicePort: 80
+          weight: 30
+      plugins:
+        - name: prometheus
+          enable: true
+      enable_websocket: true
+      timeout:
+        connect: 10s
+        send: 10s
+        read: 10s
+      upstream:
+        checks:
+          active:
+            type: http
+            http_path: /
+            healthy:
+              interval: 2s
+              successes: 2
+            unhealthy:
+              interval: 1s
+              http_failures: 2
+            concurrency: 10
+            host: "apisix-gateway.apisix.svc.cluster.local"
+            port: 9080
+            timeout:
+              connect: 2s
+              send: 1s
+              read: 1s
+            req_headers:
+              - "User-Agent: HealthCheck"
+          passive:
+            type: http
+            healthy:
+              http_statuses: [200, 201]
+              successes: 3
+            unhealthy:
+              http_statuses: [500, 502, 503]
+              http_failures: 3

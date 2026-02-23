@@ -13,14 +13,19 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
+output "private_route_table_ids" {
+  description = "Private route table IDs (for S3 gateway endpoint)"
+  value       = aws_route_table.private[*].id
+}
+
 output "eks_nodes_security_group_id" {
   description = "Security group ID for EKS nodes"
   value       = aws_security_group.eks_nodes.id
 }
 
-output "nlb_security_group_id" {
-  description = "Security group ID for NLB"
-  value       = aws_security_group.nlb.id
+output "alb_security_group_id" {
+  description = "Security group ID for ALB"
+  value       = aws_security_group.alb.id
 }
 
 output "vpc_endpoints_security_group_id" {

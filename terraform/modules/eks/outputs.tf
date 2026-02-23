@@ -19,6 +19,6 @@ output "cluster_security_group_id" {
 }
 
 output "oidc_provider_arn" {
-  description = "OIDC provider ARN for Load Balancer Controller"
-  value       = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  description = "OIDC provider ARN for Load Balancer Controller (IRSA)"
+  value       = aws_iam_openid_connect_provider.eks.arn
 }

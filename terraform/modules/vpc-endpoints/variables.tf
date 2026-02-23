@@ -8,6 +8,11 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
+variable "route_table_ids" {
+  description = "Route table IDs for S3 gateway endpoint"
+  type        = list(string)
+}
+
 variable "vpc_endpoints_security_group_id" {
   description = "Security group ID for VPC endpoints"
   type        = string

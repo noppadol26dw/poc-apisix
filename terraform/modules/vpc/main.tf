@@ -27,12 +27,16 @@ resource "aws_subnet" "public" {
   availability_zone       = var.availability_zones[count.index]
   map_public_ip_on_launch = true
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-public-${count.index + 1}"
-    Project     = var.project_name
-    Environment = var.environment
-    Type        = "public"
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-public-${count.index + 1}"
+      Project     = var.project_name
+      Environment = var.environment
+      Type        = "public"
+    },
+    var.cluster_name != "" ? { "kubernetes.io/role/elb" = "1" } : {},
+    var.cluster_name != "" ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }
 
 resource "aws_subnet" "private" {
@@ -41,12 +45,16 @@ resource "aws_subnet" "private" {
   cidr_block        = var.private_subnet_cidrs[count.index]
   availability_zone = var.availability_zones[count.index]
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-private-${count.index + 1}"
-    Project     = var.project_name
-    Environment = var.environment
-    Type        = "private"
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-private-${count.index + 1}"
+      Project     = var.project_name
+      Environment = var.environment
+      Type        = "private"
+      "kubernetes.io/role/internal-elb" = "1"
+    },
+    var.cluster_name != "" ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }
 
 resource "aws_eip" "nat" {
@@ -133,15 +141,18 @@ resource "aws_security_group" "eks_nodes" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-eks-nodes-sg"
-    Project     = var.project_name
-    Environment = var.environment
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-eks-nodes-sg"
+      Project     = var.project_name
+      Environment = var.environment
+    },
+    var.cluster_name != "" ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }
 
-resource "aws_security_group" "nlb" {
-  name_prefix = "${var.project_name}-${var.environment}-nlb-"
+resource "aws_security_group" "alb" {
+  name_prefix = "${var.project_name}-${var.environment}-alb-"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -158,11 +169,14 @@ resource "aws_security_group" "nlb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-nlb-sg"
-    Project     = var.project_name
-    Environment = var.environment
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-alb-sg"
+      Project     = var.project_name
+      Environment = var.environment
+    },
+    var.cluster_name != "" ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }
 
 resource "aws_security_group" "vpc_endpoints" {
@@ -183,9 +197,12 @@ resource "aws_security_group" "vpc_endpoints" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
-    Project     = var.project_name
-    Environment = var.environment
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
+      Project     = var.project_name
+      Environment = var.environment
+    },
+    var.cluster_name != "" ? { "kubernetes.io/cluster/${var.cluster_name}" = "shared" } : {}
+  )
 }

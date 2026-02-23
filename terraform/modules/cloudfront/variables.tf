@@ -1,16 +1,18 @@
-variable "nlb_dns_name" {
-  description = "NLB DNS name as CloudFront origin"
+variable "origin_dns_name" {
+  description = "ALB DNS name as CloudFront origin"
   type        = string
 }
 
 variable "domain_name" {
-  description = "Domain name for CloudFront distribution"
+  description = "Custom domain for CloudFront (optional)"
   type        = string
+  default     = ""
 }
 
 variable "acm_certificate_arn" {
-  description = "ACM certificate ARN"
+  description = "ACM certificate ARN for custom domain. Null = use CloudFront default cert (xxx.cloudfront.net)."
   type        = string
+  default     = null
 }
 
 variable "waf_web_acl_id" {

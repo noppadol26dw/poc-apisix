@@ -27,3 +27,9 @@ variable "environment" {
   description = "Environment for tagging"
   type        = string
 }
+
+variable "cluster_name" {
+  description = "EKS cluster name; used for subnet tag kubernetes.io/cluster/<name> so AWS LB Controller can discover subnets"
+  type        = string
+  default     = ""
+}

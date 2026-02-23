@@ -8,7 +8,7 @@ data "aws_iam_policy_document" "lb_controller_assume_role" {
     }
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "arn:aws:iam::", ":oidc-provider/")}:sub"
+      variable = "${regex(":oidc-provider/(.+)", var.oidc_provider_arn)[0]}:sub"
       values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
     }
   }
@@ -84,6 +84,7 @@ data "aws_iam_policy_document" "lb_controller_policy" {
       "elasticloadbalancing:SetIpAddressType",
       "elasticloadbalancing:SetSecurityGroups",
       "elasticloadbalancing:SetSubnets",
+      "elasticloadbalancing:CreateLoadBalancer",
       "elasticloadbalancing:DeleteLoadBalancer",
       "elasticloadbalancing:ModifyTargetGroupAttributes",
       "elasticloadbalancing:AddTags",
@@ -93,6 +94,22 @@ data "aws_iam_policy_document" "lb_controller_policy" {
       "elasticloadbalancing:ModifyRule",
       "elasticloadbalancing:AddCertificates",
       "elasticloadbalancing:RemoveCertificates"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AWSLoadBalancerControllerSecurityGroup"
+    effect = "Allow"
+    actions = [
+      "ec2:CreateSecurityGroup",
+      "ec2:DeleteSecurityGroup",
+      "ec2:AuthorizeSecurityGroupIngress",
+      "ec2:AuthorizeSecurityGroupEgress",
+      "ec2:RevokeSecurityGroupIngress",
+      "ec2:RevokeSecurityGroupEgress",
+      "ec2:CreateTags",
+      "ec2:DeleteTags"
     ]
     resources = ["*"]
   }
@@ -114,7 +131,7 @@ resource "aws_iam_role_policy_attachment" "lb_controller" {
 }
 
 resource "kubernetes_service_account" "lb_controller" {
-  automount_service_account_token = false
+  automount_service_account_token = true
   metadata {
     name      = "aws-load-balancer-controller"
     namespace = "kube-system"
@@ -130,10 +147,17 @@ resource "helm_release" "aws_load_balancer_controller" {
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
   version    = "1.6.0"
+  wait       = false # don't block on pod readiness; controller may need extra time or debugging
+  timeout    = 300
 
   set {
     name  = "clusterName"
     value = var.cluster_name
+  }
+
+  set {
+    name  = "vpcId"
+    value = var.vpc_id
   }
 
   set {

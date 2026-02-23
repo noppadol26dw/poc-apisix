@@ -28,38 +28,38 @@ output "cluster_ca_certificate" {
   value       = module.eks.cluster_ca_certificate
 }
 
-output "nlb_dns_name" {
-  description = "NLB DNS name"
-  value       = module.lb_controller.nlb_dns_name
+output "alb_dns_name" {
+  description = "ALB DNS name (CloudFront origin; from Ingress when present)"
+  value       = local.cloudfront_origin_dns
 }
 
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID"
-  value       = aws_cloudfront_distribution.main.id
+  value       = module.cloudfront.distribution_id
 }
 
 output "cloudfront_domain_name" {
   description = "CloudFront distribution domain name"
-  value       = aws_cloudfront_distribution.main.domain_name
+  value       = module.cloudfront.domain_name
 }
 
 output "waf_web_acl_id" {
   description = "WAF Web ACL ID"
-  value       = aws_wafv2_web_acl.main.arn
+  value       = module.waf.web_acl_id
 }
 
 output "acm_certificate_arn" {
-  description = "ACM certificate ARN"
-  value       = aws_acm_certificate.main.arn
+  description = "ACM certificate ARN (only set when domain_name is set)"
+  value       = length(aws_acm_certificate.main) > 0 ? aws_acm_certificate.main[0].arn : null
 }
 
 output "acm_dns_validation" {
-  description = "ACM DNS validation records"
-  value = {
-    for record in aws_acm_certificate.main.domain_validation_options : record.domain_name => {
+  description = "ACM DNS validation records (only set when domain_name is set)"
+  value = length(aws_acm_certificate.main) > 0 ? {
+    for record in aws_acm_certificate.main[0].domain_validation_options : record.domain_name => {
       name   = record.resource_record_name
       record = record.resource_record_value
       type   = record.resource_record_type
     }
-  }
+  } : null
 }

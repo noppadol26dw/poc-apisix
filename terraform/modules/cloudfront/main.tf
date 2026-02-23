@@ -1,9 +1,5 @@
 locals {
-  origin_id = "APISIX-NLB"
-}
-
-resource "aws_cloudfront_origin_access_control" "main" {
-  description = "${var.project_name}-${var.environment}-oac"
+  origin_id = "APISIX-ALB"
 }
 
 resource "aws_cloudfront_distribution" "main" {
@@ -13,7 +9,7 @@ resource "aws_cloudfront_distribution" "main" {
   http_version    = "http2and3"
 
   origin {
-    domain_name = var.nlb_dns_name
+    domain_name = var.origin_dns_name
     origin_id   = local.origin_id
     custom_origin_config {
       http_port              = 80
@@ -29,7 +25,10 @@ resource "aws_cloudfront_distribution" "main" {
     target_origin_id = local.origin_id
     forwarded_values {
       query_string = false
-      headers      = ["Host", "X-Forwarded-For", "X-Real-IP"]
+      cookies {
+        forward = "none"
+      }
+      headers = ["Host", "X-Forwarded-For"]
     }
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -44,10 +43,19 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  viewer_certificate {
-    acm_certificate_arn      = var.acm_certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+  dynamic "viewer_certificate" {
+    for_each = var.acm_certificate_arn != null && var.acm_certificate_arn != "" ? [1] : []
+    content {
+      acm_certificate_arn      = var.acm_certificate_arn
+      ssl_support_method       = "sni-only"
+      minimum_protocol_version = "TLSv1.2_2021"
+    }
+  }
+  dynamic "viewer_certificate" {
+    for_each = var.acm_certificate_arn == null || var.acm_certificate_arn == "" ? [1] : []
+    content {
+      cloudfront_default_certificate = true
+    }
   }
 
   web_acl_id = var.waf_web_acl_id

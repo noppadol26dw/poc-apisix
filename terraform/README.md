@@ -5,7 +5,7 @@ This directory contains Terraform modules and configuration for deploying APISIX
 ## Architecture
 
 ```
-Internet -> CloudFront -> WAF -> NLB (Internal) -> APISIX -> Apps
+Internet -> CloudFront -> WAF -> ALB -> APISIX -> Apps
 ```
 
 ## Directory Structure
@@ -86,6 +86,6 @@ Installs AWS Load Balancer Controller via Helm.
 ## Security
 
 - All EKS nodes and APISIX pods run in private subnets
-- NLB is internal (no public exposure)
+- ALB is internet-facing as CloudFront origin
 - VPC Interface Endpoints for private CloudFront access
 - IAM roles follow least privilege principle

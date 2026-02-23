@@ -129,3 +129,70 @@ resource "aws_security_group_rule" "eks_nodes_to_cluster" {
   source_security_group_id = var.eks_nodes_security_group_id
   security_group_id        = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
+
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-eks-oidc"
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+# EBS CSI driver needs IRSA to call AWS APIs; without it addon never becomes ACTIVE
+data "aws_iam_policy_document" "ebs_csi_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${regex(":oidc-provider/(.+)", aws_iam_openid_connect_provider.eks.arn)[0]}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.project_name}-${var.environment}-ebs-csi-driver-role"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_trust.json
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi.name
+}
+
+# EBS CSI driver for gp2 PVC (required for dynamic volume provisioning on EKS 1.23+)
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "aws-ebs-csi-driver"
+  service_account_role_arn    = aws_iam_role.ebs_csi.arn
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+
+  depends_on = [
+    aws_eks_node_group.main,
+    aws_iam_role_policy_attachment.ebs_csi
+  ]
+}

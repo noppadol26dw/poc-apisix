@@ -1,7 +1,5 @@
 locals {
-  azs           = ["ap-southeast-1a", "ap-southeast-1b", "ap-southeast-1c"]
-  public_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  private_cidrs = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
+  azs = ["ap-southeast-1a", "ap-southeast-1b", "ap-southeast-1c"]
 }
 
 module "vpc" {
@@ -9,10 +7,11 @@ module "vpc" {
 
   vpc_cidr             = var.vpc_cidr
   availability_zones   = local.azs
-  public_subnet_cidrs  = local.public_cidrs
-  private_subnet_cidrs = local.private_cidrs
+  public_subnet_cidrs  = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
   project_name         = var.project_name
   environment          = var.environment
+  cluster_name         = var.cluster_name
 }
 
 module "eks" {
@@ -36,6 +35,7 @@ module "vpc_endpoints" {
 
   vpc_id                          = module.vpc.vpc_id
   private_subnet_ids              = module.vpc.private_subnet_ids
+  route_table_ids                 = module.vpc.private_route_table_ids
   vpc_endpoints_security_group_id = module.vpc.vpc_endpoints_security_group_id
   project_name                    = var.project_name
   environment                     = var.environment
@@ -50,11 +50,30 @@ data "aws_eks_cluster" "main" {
   ]
 }
 
+# ALB created by Ingress (AWS LB controller). Tags: elbv2.k8s.aws/cluster, ingress.k8s.aws/resource
+data "aws_lbs" "apisix_alb" {
+  tags = {
+    "elbv2.k8s.aws/cluster"     = var.cluster_name
+    "ingress.k8s.aws/resource"  = "${var.k8s_gateway_namespace}/${var.k8s_gateway_service_name}"
+  }
+}
+
+data "aws_lb" "apisix_alb" {
+  for_each = toset(data.aws_lbs.apisix_alb.arns)
+  arn      = each.value
+}
+
+locals {
+  # Use ALB DNS when found; otherwise fallback to var.alb_dns_name (e.g. placeholder)
+  cloudfront_origin_dns = length(data.aws_lbs.apisix_alb.arns) > 0 ? values(data.aws_lb.apisix_alb)[0].dns_name : var.alb_dns_name
+}
+
 module "cloudfront" {
   source = "./modules/cloudfront"
 
+  origin_dns_name     = local.cloudfront_origin_dns
   domain_name         = var.domain_name
-  acm_certificate_arn = aws_acm_certificate.main.arn
+  acm_certificate_arn = var.domain_name != "" ? aws_acm_certificate.main[0].arn : null
   waf_web_acl_id      = module.waf.web_acl_id
 
   project_name = var.project_name
@@ -64,13 +83,18 @@ module "cloudfront" {
 module "waf" {
   source = "./modules/waf"
 
-  cloudfront_distribution_id = aws_cloudfront_distribution.main.id
-
   project_name = var.project_name
   environment  = var.environment
+
+  providers = {
+    aws = aws.us_east_1
+  }
 }
 
+# ACM certificate for CloudFront (only when using custom domain; must be in us-east-1)
 resource "aws_acm_certificate" "main" {
+  count             = var.domain_name != "" ? 1 : 0
+  provider          = aws.us_east_1
   domain_name       = var.domain_name
   validation_method = "DNS"
 
@@ -90,9 +114,6 @@ resource "aws_acm_certificate" "main" {
   }
 }
 
-data "aws_cloudfront_distribution" "main" {
-  id = aws_cloudfront_distribution.main.id
-}
 
 data "aws_eks_cluster_auth" "main" {
   name = module.eks.cluster_name
@@ -107,9 +128,13 @@ module "lb_controller" {
   cluster_endpoint       = module.eks.cluster_endpoint
   cluster_ca_certificate = module.eks.cluster_ca_certificate
   oidc_provider_arn      = module.eks.oidc_provider_arn
+  vpc_id                 = module.vpc.vpc_id
   project_name           = var.project_name
   environment            = var.environment
 }
+
+# WAF is attached to CloudFront via distribution's web_acl_id (in cloudfront module), not via aws_wafv2_web_acl_association.
+# aws_wafv2_web_acl_association is only for regional resources (ALB, API Gateway, etc.), not CloudFront.
 
 # resource "aws_s3_bucket" "terraform_state" {
 #   bucket = "${var.project_name}-terraform-state"

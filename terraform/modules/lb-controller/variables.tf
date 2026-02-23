@@ -3,6 +3,11 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "vpc_id" {
+  description = "VPC ID for the cluster (required when nodes cannot use instance metadata for VPC discovery)"
+  type        = string
+}
+
 variable "cluster_endpoint" {
   description = "EKS cluster endpoint"
   type        = string

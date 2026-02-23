@@ -20,3 +20,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup

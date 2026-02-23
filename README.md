@@ -56,7 +56,7 @@ docker compose up -d
 
 ## Deploy to Kubernetes (Production)
 
-For production-grade deployment on AWS EKS with CloudFront + WAF + NLB (Internal), see:
+For production-grade deployment on AWS EKS with CloudFront + WAF + ALB, see:
 
 - [k8s/docs/TERRAFORM_SETUP.md](k8s/docs/TERRAFORM_SETUP.md) - Deploy Terraform infrastructure (VPC, EKS, CloudFront, WAF)
 - [k8s/docs/K8S_DEPLOYMENT.md](k8s/docs/K8S_DEPLOYMENT.md) - Deploy APISIX and applications to Kubernetes
@@ -64,8 +64,10 @@ For production-grade deployment on AWS EKS with CloudFront + WAF + NLB (Internal
 
 ### Architecture
 
+![Architecture](assets/architecture-full.png)
+
 ```
-Internet -> CloudFront -> WAF -> NLB (Internal) -> APISIX -> Apps
+Internet -> CloudFront -> WAF -> ALB -> APISIX -> Apps
 ```
 
 ### Quick Start
@@ -83,7 +85,7 @@ cd k8s
 ./scripts/deploy.sh
 
 # 4. Test routing
-curl http://<NLB-DNS-NAME>/web
+curl http://<ALB-DNS-NAME-or-CLOUDFRONT-URL>/web
 ```
 
 ### Features
@@ -91,7 +93,7 @@ curl http://<NLB-DNS-NAME>/web
 - **Terraform modules**: Reusable, testable infrastructure as code
 - **VPC with public/private subnets**: Standard production architecture
 - **EKS managed node groups**: AWS-managed Kubernetes nodes
-- **NLB Internal**: No direct public exposure, private CloudFront access
+- **ALB (internet-facing)**: CloudFront origin; WAF in front
 - **CloudFront + WAF**: Global CDN + OWASP protection + rate limiting
 - **APISIX canary deployments**: 70:30 traffic split for testing
 - **Health checks**: Active + passive health monitoring

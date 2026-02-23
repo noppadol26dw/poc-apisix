@@ -8,16 +8,6 @@ This guide explains how to deploy APISIX API Gateway and sample applications to 
 - kubectl configured to EKS cluster
 - helm installed
 
-## Architecture
-
-```
-CloudFront -> WAF -> NLB (Internal) -> APISIX Gateway
-                                            |
-                                            v
-                                    APISIX Ingress Controller
-                                            |
-                                            v
-                                    web1 (70%) + web2 (30%)
 ```
 
 ## Setup Steps
@@ -43,7 +33,7 @@ cd k8s
 This will:
 - Create apisix namespace
 - Deploy APISIX via Helm (gateway, etcd, ingress controller, dashboard)
-- Deploy NLB Internal service
+- Deploy gateway Service (ClusterIP) and Ingress (internet-facing ALB)
 - Deploy sample applications (web1, web2)
 - Deploy ApisixRoute with canary (70:30)
 
@@ -60,27 +50,30 @@ kubectl get pods -n default
 kubectl get svc -n apisix
 kubectl get svc -n default
 
-# Check NLB DNS name
-kubectl get svc apisix-gateway -n apisix -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# Check ALB DNS name (from Ingress)
+kubectl get ingress apisix-gateway -n apisix -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 ```
 
 Expected output:
 - apisix namespace: APISIX pods, etcd pods, ingress controller, dashboard
 - default namespace: web1, web2 pods
-- NLB: LoadBalancer type with internal scheme
+- Ingress: ADDRESS set to ALB DNS (internet-facing)
 
-### 4. Test NLB Direct Access
+### 4. Test ALB or CloudFront Access
 
 ```bash
-# Get NLB DNS name
-NLB_DNS=$(kubectl get svc apisix-gateway -n apisix -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+# Get ALB DNS name
+ALB_DNS=$(kubectl get ingress apisix-gateway -n apisix -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
-# Test routing
-curl http://$NLB_DNS/web
+# Test routing (via ALB)
+curl http://$ALB_DNS/web
+
+# Or test via CloudFront (after terraform apply)
+# curl https://<cloudfront-domain>/web
 
 # Test multiple times for canary
 for i in {1..10}; do
-  curl -s http://$NLB_DNS/web
+  curl -s http://$ALB_DNS/web
 done
 ```
 
@@ -90,7 +83,7 @@ Expected: 70% "web1", 30% "web2" responses.
 
 ```bash
 # APISIX control API
-curl -s http://$NLB_DNS:9092/v1/healthcheck | jq .
+curl -s http://$ALB_DNS:9092/v1/healthcheck | jq .
 ```
 
 Should show health status for upstreams (web1, web2).
@@ -121,22 +114,13 @@ Configuration:
 - Prometheus plugin: enabled (port 9091)
 - Admin API: enabled (port 9180)
 
-### NLB Internal Service
+### Gateway Service (ClusterIP) + Ingress (ALB)
 
-Service type: LoadBalancer with internal scheme.
-
-Annotations:
-- `aws-load-balancer-type: nlb`
-- `aws-load-balancer-nlb-target-type: ip`
-- `aws-load-balancer-scheme: internal`
-- `externalTrafficPolicy: Local` (preserve source IP)
-
-Health checks:
-- Protocol: HTTP
-- Path: `/apisix/admin/upstream`
-- Interval: 10s
-- Timeout: 5s
-- Thresholds: 3 healthy, 2 unhealthy
+- **Service** `apisix-gateway`: ClusterIP, ports 80→9080, 443→9443, admin 9180, control 9092.
+- **Ingress** `apisix-gateway`: Uses IngressClass `alb`; AWS Load Balancer Controller creates an **internet-facing ALB**.
+  - Annotations: `alb.ingress.kubernetes.io/scheme: internet-facing`, `alb.ingress.kubernetes.io/target-type: ip`
+  - Backend: service `apisix-gateway`, port 80.
+- Terraform discovers the ALB by tag `ingress.k8s.aws/resource = apisix/apisix-gateway` and sets it as CloudFront origin.
 
 ### Sample Applications
 
@@ -172,7 +156,7 @@ To test:
 ```bash
 # Call multiple times
 for i in {1..20}; do
-  curl -s http://$NLB_DNS/web
+  curl -s http://$ALB_DNS/web
 done | sort | uniq -c
 ```
 
@@ -210,11 +194,11 @@ APISIX performs active and passive health checks on upstreams.
 ### Check Health Status
 
 ```bash
-# Get NLB DNS
-NLB_DNS=$(kubectl get svc apisix-gateway -n apisix -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+# Get ALB DNS (from Ingress)
+ALB_DNS=$(kubectl get ingress apisix-gateway -n apisix -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
 # Get health status
-curl -s http://$NLB_DNS:9092/v1/healthcheck | jq .
+curl -s http://$ALB_DNS:9092/v1/healthcheck | jq .
 ```
 
 ## Troubleshooting
@@ -230,17 +214,16 @@ kubectl describe pod <pod-name> -n <namespace>
 # - CrashLoopBackOff: Check logs, verify config
 ```
 
-### NLB Not Creating
+### ALB / Ingress Not Creating
 
 ```bash
 # Check AWS Load Balancer Controller logs
 kubectl logs -n kube-system deployment/aws-load-balancer-controller
 
-# Check IAM role
-aws iam get-role --role-name <role-name>
+# Check Ingress status and events
+kubectl describe ingress apisix-gateway -n apisix
 
-# Check security groups
-aws ec2 describe-security-groups --group-ids <sg-id>
+# Check IAM role and security groups (controller needs ec2:CreateSecurityGroup, elasticloadbalancing:CreateLoadBalancer, etc.)
 ```
 
 ### Routing Not Working
@@ -281,7 +264,7 @@ cd k8s
 This will remove:
 - ApisixRoute
 - Sample applications (web1, web2)
-- NLB service
+- Ingress (ALB) and gateway Service
 - APISIX Helm release
 
 Note: Namespace `apisix` will not be deleted by default.

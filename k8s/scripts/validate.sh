@@ -8,8 +8,11 @@ echo "Validating APISIX Helm values..."
 helm template apisix apisix/apisix -f base/apisix-values.yaml > /dev/null
 
 # Validate K8s manifests with dry-run
-echo "Validating APISIX gateway service..."
+echo "Validating IngressClass alb..."
+kubectl apply --dry-run=server -f base/ingressclass-alb.yaml
+echo "Validating APISIX gateway Service and Ingress..."
 kubectl apply --dry-run=server -f base/apisix-gateway-svc.yaml
+kubectl apply --dry-run=server -f base/apisix-gateway-ingress.yaml
 
 echo "Validating sample applications..."
 kubectl apply --dry-run=server -f apps/configmaps.yaml

@@ -25,18 +25,13 @@ AWS WAF (Web Application Firewall)
     └─► Bot Protection
     │
     ▼ Layer 3
-VPC Interface Endpoint (Private Connection)
+AWS ALB (CloudFront Origin)
     │
-    └─► Private link from CloudFront to NLB
+    ├─► Internet-facing (WAF in front)
+    ├─► L7 Load Balancing
+    └─► Ingress → APISIX Service
     │
     ▼ Layer 4
-AWS NLB (Internal Load Balancer)
-    │
-    ├─► No Public Exposure
-    ├─► Fast L4 Load Balancing
-    └─► VPC-Level Isolation
-    │
-    ▼ Layer 5
 APISIX Gateway Pods (Private Subnets)
     │
     ├─► Per-API Rate Limiting
@@ -45,7 +40,7 @@ APISIX Gateway Pods (Private Subnets)
     ├─► Request/Response Plugins
     └─► Canary Deployments
     │
-    ▼ Layer 6
+    ▼ Layer 5
 Application Services (Private Network)
     │
     └─► No Direct Internet Access
@@ -124,68 +119,37 @@ Application-level security and request filtering.
 - Fine-grained request filtering
 - Real-time threat detection
 
-## Layer 3: VPC Interface Endpoint
+## Layer 3: AWS ALB (CloudFront Origin)
 
 ### Purpose
 
-Private connection between CloudFront and NLB without public exposure.
+Application Load Balancer as CloudFront origin; WAF sits in front. Created by AWS Load Balancer Controller from Ingress.
 
 ### Security Features
 
-- **Private Link**: CloudFront communicates with NLB via VPC endpoint
-- **No Public IP**: NLB not accessible from internet
-- **DNS Resolution**: Private DNS names within VPC
-- **Traffic Isolation**: Traffic stays within AWS network
-
-### Configuration
-
-- Endpoint Type: Interface (VPC endpoint)
-- Service: `com.amazonaws.<region>.cloudfront`
-- Subnet: Private subnet
-- Security Group: Specific to CloudFront endpoint
-
-### Benefits
-
-- No public NLB exposure
-- Reduced attack surface
-- No NAT gateway costs for this traffic
-- Private DNS resolution
-
-## Layer 4: AWS NLB (Internal)
-
-### Purpose
-
-Load balancing for APISIX pods with internal-only access.
-
-### Security Features
-
-- **Internal Scheme**: No direct internet access
-- **IP Target Type**: Direct to pod IPs (not through kube-proxy)
-- **Cross-Zone LB**: Distribute traffic across AZs
-- **ExternalTrafficPolicy: Local**: Preserve source IP
-- **Health Checks**: Active health monitoring
+- **Internet-facing**: CloudFront and WAF terminate first; ALB receives filtered traffic
+- **Target Type: IP**: Direct to APISIX pod IPs
+- **Ingress-driven**: Single Ingress (e.g. apisix-gateway) provisions ALB
+- **Health Checks**: ALB health checks to APISIX pods
 
 ### Configuration
 
 ```yaml
+# Ingress (alb ingress class)
 annotations:
-  aws-load-balancer-type: "nlb"
-  aws-load-balancer-nlb-target-type: "ip"
-  aws-load-balancer-scheme: "internal"
-  aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+  alb.ingress.kubernetes.io/scheme: internet-facing
+  alb.ingress.kubernetes.io/target-type: ip
 spec:
-  externalTrafficPolicy: Local
+  ingressClassName: alb
 ```
 
 ### Benefits
 
-- No direct public exposure
-- Fast L4 load balancing
-- Source IP preservation for logging
-- Automatic failover within AZs
-- Health check-based routing
+- L7 routing and health checks
+- Single ALB for APISIX (Ingress)
+- CloudFront + WAF in front reduce direct exposure
 
-## Layer 5: APISIX Gateway
+## Layer 4: APISIX Gateway
 
 ### Purpose
 
@@ -237,7 +201,7 @@ plugins:
 - Real-time traffic monitoring
 - Automatic upstream failover
 
-## Layer 6: Application Services
+## Layer 5: Application Services
 
 ### Purpose
 
@@ -276,8 +240,7 @@ spec:
 |--------|------------------|---------------------|
 | CloudFront | Volumetric DDoS, latency | Shield Standard, caching |
 | WAF | SQLi, XSS, CSRF, bot attacks | OWASP rules, rate limiting |
-| VPC Endpoint | Public exposure | Private network only |
-| NLB | Network-level attacks | L4 termination, health checks |
+| ALB | Origin exposure | WAF in front, L7 health checks |
 | APISIX | API abuse, unauthorized access | Rate limiting, auth, plugins |
 | Applications | Data breaches, injection | Private network, service isolation |
 
@@ -289,8 +252,7 @@ Attacker -> CloudFront
        └─► Allowed -> WAF
           └─► Blocked by OWASP rules
                └─► Blocked by rate limiting
-                    └─► Allowed -> VPC Endpoint
-                       └─► NLB (Internal - no public IP)
+                    └─► Allowed -> ALB (CloudFront origin)
                           └─► APISIX Gateway
                              └─► Blocked by rate limiting
                                   └─► Blocked by auth
@@ -303,7 +265,7 @@ Attacker -> CloudFront
 ### CloudWatch Metrics
 
 - EKS metrics: CPU, memory, network
-- NLB metrics: Active connections, new connections, target response time
+- ALB metrics: Active connections, request count, target response time
 - CloudFront metrics: Requests, errors, latency
 - WAF metrics: Blocked requests, allowed requests, rate limit exceeded
 
@@ -318,7 +280,7 @@ Attacker -> CloudFront
 
 - High error rate (CloudFront)
 - WAF block rate exceeds threshold
-- NLB unhealthy target count
+- ALB unhealthy target count
 - APISIX rate limit exceeded
 - EKS node resource exhaustion
 
@@ -385,7 +347,7 @@ Keep APISIX, EKS, and AWS services updated.
 |------------------|---------------|------------------|
 | CloudFront (Shield Standard) | Included | DDoS protection |
 | WAF | $5 + $0.60M reqs | OWASP, rate limiting |
-| NLB Internal | ~$22 | Load balancing |
+| ALB | ~$22 | Load balancing (CloudFront origin) |
 | Private Subnets | No extra cost | Network isolation |
 | VPC Endpoints | ~$0.01/hour | Private access |
 
@@ -393,13 +355,12 @@ Keep APISIX, EKS, and AWS services updated.
 
 ## Summary
 
-This architecture provides defense in depth with 6 security layers:
+This architecture provides defense in depth with 5 security layers:
 
 1. **CloudFront**: Global CDN + DDoS protection
 2. **WAF**: OWASP compliance + rate limiting
-3. **VPC Endpoint**: Private connection (no public NLB)
-4. **NLB Internal**: Load balancing without public exposure
-5. **APISIX**: Per-API security (rate limit, auth)
-6. **Private Apps**: Network isolation
+3. **ALB**: CloudFront origin, L7 load balancing to APISIX
+4. **APISIX**: Per-API security (rate limit, auth)
+5. **Private Apps**: Network isolation
 
 Each layer provides different protection mechanisms, creating a robust security posture for production API deployments.

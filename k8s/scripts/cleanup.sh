@@ -21,9 +21,12 @@ kubectl delete -f apps/web2-deployment.yaml --ignore-not-found=true
 kubectl delete -f apps/services.yaml --ignore-not-found=true
 kubectl delete -f apps/configmaps.yaml --ignore-not-found=true
 
-# Delete NLB service
-echo "Deleting NLB service..."
+# Delete Ingress (ALB) and gateway Service
+echo "Deleting Ingress (ALB)..."
+kubectl delete -f base/apisix-gateway-ingress.yaml --ignore-not-found=true
+echo "Deleting gateway Service..."
 kubectl delete -f base/apisix-gateway-svc.yaml --ignore-not-found=true
+# IngressClass alb can remain (shared); optionally: kubectl delete -f base/ingressclass-alb.yaml
 
 # Uninstall APISIX Helm release
 echo "Uninstalling APISIX..."

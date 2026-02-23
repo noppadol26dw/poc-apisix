@@ -7,8 +7,10 @@ This directory contains Kubernetes manifests for deploying APISIX API Gateway an
 ```
 k8s/
 ├── base/                   # Base configurations
-│   ├── apisix-values.yaml      # Helm values for APISIX
-│   └── apisix-gateway-svc.yaml  # NLB Internal service
+│   ├── apisix-values.yaml           # Helm values for APISIX
+│   ├── apisix-gateway-svc.yaml      # Gateway Service (ClusterIP)
+│   ├── apisix-gateway-ingress.yaml  # Ingress for internet-facing ALB
+│   └── ingressclass-alb.yaml       # IngressClass for ALB
 ├── apps/                    # Sample applications
 │   ├── web1-deployment.yaml
 │   ├── web2-deployment.yaml
@@ -57,7 +59,7 @@ cd k8s
 ### APISIX Gateway
 Deployed via Helm chart from `apisix/apisix`. Includes:
 - Gateway pods in private subnets
-- NLB Internal load balancer
+- Gateway Service (ClusterIP) + Ingress (internet-facing ALB) for CloudFront origin
 - etcd storage (EBS gp3)
 - Ingress controller
 - Dashboard (ClusterIP only)

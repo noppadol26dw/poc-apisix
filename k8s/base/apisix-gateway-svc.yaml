@@ -5,20 +5,8 @@ metadata:
   namespace: apisix
   labels:
     app.kubernetes.io/name: apisix
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
-    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "HTTP"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/apisix/admin/upstream"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval-seconds: "10"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout-seconds: "5"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "3"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
 spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
+  type: ClusterIP
   ports:
     - name: http
       port: 80

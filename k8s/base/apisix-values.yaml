@@ -1,3 +1,8 @@
+# Allow etcd subchart to use non-default image if needed
+global:
+  security:
+    allowInsecureImages: true
+
 apisix:
   node_listen:
     - 9080
@@ -69,15 +74,33 @@ discovery:
 
 etcd:
   enabled: true
+  # quay.io/coreos/etcd works when registry set correctly (no docker.io prefix)
   image:
-    repository: quay.io/coreos/etcd
+    registry: quay.io
+    repository: coreos/etcd
     tag: "v3.5.0"
+
+  # coreos/etcd: no Bitnami scripts; use tcpSocket (port open = healthy)
+  livenessProbe:
+    tcpSocket:
+      port: 2379
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 5
+    timeoutSeconds: 5
+  readinessProbe:
+    tcpSocket:
+      port: 2379
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    failureThreshold: 5
+    timeoutSeconds: 5
 
   replicaCount: 3
 
   persistence:
     enabled: true
-    storageClass: "gp3"
+    storageClass: "gp2"
     size: "10Gi"
 
   service:

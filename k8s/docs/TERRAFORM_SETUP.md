@@ -13,7 +13,7 @@ This guide explains how to deploy APISIX infrastructure on AWS EKS using Terrafo
 ## Architecture
 
 ```
-Internet -> CloudFront -> WAF -> NLB (Internal) -> APISIX -> Apps
+Internet -> CloudFront -> WAF -> ALB -> APISIX -> Apps
 ```
 
 ## Setup Steps
@@ -139,7 +139,7 @@ See [K8S_DEPLOYMENT.md](./K8S_DEPLOYMENT.md).
 | NAT Gateways (2) | EKS nodes internet access |
 | Internet Gateway | Public internet access |
 | Route Tables | Routing for public/private subnets |
-| Security Groups | EKS nodes, NLB, VPC endpoints |
+| Security Groups | EKS nodes, ALB, VPC endpoints |
 | EKS Cluster | Kubernetes control plane |
 | Managed Node Groups | 3 x t3.medium nodes |
 | IAM Roles | EKS cluster, nodes, LB controller |
@@ -202,4 +202,4 @@ Estimated monthly costs:
 - S3 Storage: ~$0.023/GB
 - DynamoDB: $0.25/GB stored + request fees
 
-Total: ~$200/month (before CloudFront, WAF, NLB)
+Total: ~$200/month (before CloudFront, WAF, ALB)
